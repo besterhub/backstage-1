@@ -16,7 +16,12 @@
 
 import { ENTITY_DEFAULT_NAMESPACE } from './constants';
 import { Entity } from './Entity';
-import { parseEntityName, parseEntityRef, serializeEntityRef } from './ref';
+import {
+  matchEntityWithRef,
+  parseEntityName,
+  parseEntityRef,
+  serializeEntityRef,
+} from './ref';
 
 describe('ref', () => {
   describe('parseEntityName', () => {
@@ -379,6 +384,322 @@ describe('ref', () => {
       expect(
         serializeEntityRef({ kind: 'a', namespace: 'b', name: 'c/x' }),
       ).toEqual({ kind: 'a', namespace: 'b', name: 'c/x' });
+    });
+  });
+
+  describe('matchEntityWithRef', () => {
+    const entityWithNamespace: Entity = {
+      apiVersion: 'a',
+      kind: 'K',
+      metadata: {
+        name: 'n',
+        namespace: 'ns',
+      },
+    };
+    const entityWithoutNamespace: Entity = {
+      apiVersion: 'a',
+      kind: 'K',
+      metadata: {
+        name: 'n',
+      },
+    };
+
+    it('handles matching string refs', () => {
+      expect(matchEntityWithRef(entityWithNamespace, 'K:ns/n')).toBe(true);
+      expect(matchEntityWithRef(entityWithNamespace, 'k:nS/N')).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, 'K:n', {
+          defaultNamespace: 'ns',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, 'K:n', {
+          defaultNamespace: 'Ns',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, 'ns/n', { defaultKind: 'K' }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, 'n', {
+          defaultKind: 'K',
+          defaultNamespace: 'ns',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, 'N', {
+          defaultKind: 'k',
+          defaultNamespace: 'nS',
+        }),
+      ).toBe(true);
+
+      expect(matchEntityWithRef(entityWithoutNamespace, 'K:default/n')).toBe(
+        true,
+      );
+      expect(matchEntityWithRef(entityWithoutNamespace, 'K:deFault/n')).toBe(
+        true,
+      );
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'K:n', {
+          defaultNamespace: 'default',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'K:n', {
+          defaultNamespace: 'deFault',
+        }),
+      ).toBe(true);
+      expect(matchEntityWithRef(entityWithoutNamespace, 'K:default/n')).toBe(
+        true,
+      );
+      expect(matchEntityWithRef(entityWithoutNamespace, 'K:n')).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'default/n', {
+          defaultKind: 'K',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'n', {
+          defaultKind: 'K',
+          defaultNamespace: 'default',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'n', {
+          defaultKind: 'K',
+        }),
+      ).toBe(true);
+    });
+
+    it('handles mismatching string refs', () => {
+      expect(matchEntityWithRef(entityWithNamespace, 'X:ns/n')).toBe(false);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'ns/n', {
+          defaultKind: 'X',
+        }),
+      ).toBe(false);
+
+      expect(matchEntityWithRef(entityWithNamespace, 'K:xx/n')).toBe(false);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'K:n', {
+          defaultNamespace: 'xx',
+        }),
+      ).toBe(false);
+
+      expect(matchEntityWithRef(entityWithNamespace, 'K:ns/x')).toBe(false);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, 'x', {
+          defaultKind: 'K',
+          defaultNamespace: 'ns',
+        }),
+      ).toBe(false);
+    });
+
+    it('handles matching compound refs', () => {
+      expect(
+        matchEntityWithRef(entityWithNamespace, {
+          kind: 'K',
+          namespace: 'ns',
+          name: 'n',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, {
+          kind: 'k',
+          namespace: 'Ns',
+          name: 'N',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(
+          entityWithNamespace,
+          { kind: 'K', name: 'n' },
+          {
+            defaultNamespace: 'ns',
+          },
+        ),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(
+          entityWithNamespace,
+          { namespace: 'ns', name: 'n' },
+          { defaultKind: 'K' },
+        ),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, 'n', {
+          defaultKind: 'K',
+          defaultNamespace: 'ns',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithNamespace, 'N', {
+          defaultKind: 'k',
+          defaultNamespace: 'nS',
+        }),
+      ).toBe(true);
+
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, {
+          kind: 'K',
+          namespace: 'default',
+          name: 'n',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, {
+          kind: 'k',
+          namespace: 'deFault',
+          name: 'N',
+        }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          { kind: 'K', name: 'n' },
+          {
+            defaultNamespace: 'default',
+          },
+        ),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, { kind: 'K', name: 'n' }),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          { namespace: 'default', name: 'n' },
+          {
+            defaultKind: 'K',
+          },
+        ),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          { name: 'n' },
+          {
+            defaultKind: 'K',
+            defaultNamespace: 'default',
+          },
+        ),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          { name: 'N' },
+          {
+            defaultKind: 'k',
+            defaultNamespace: 'defAult',
+          },
+        ),
+      ).toBe(true);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          { name: 'n' },
+          {
+            defaultKind: 'K',
+          },
+        ),
+      ).toBe(true);
+    });
+
+    it('handles mismatching compound refs', () => {
+      expect(
+        matchEntityWithRef(entityWithNamespace, {
+          kind: 'X',
+          namespace: 'ns',
+          name: 'n',
+        }),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(
+          entityWithNamespace,
+          {
+            namespace: 'ns',
+            name: 'n',
+          },
+          { defaultKind: 'X' },
+        ),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, {
+          kind: 'X',
+          namespace: 'default',
+          name: 'n',
+        }),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          {
+            namespace: 'default',
+            name: 'n',
+          },
+          { defaultKind: 'X' },
+        ),
+      ).toBe(false);
+
+      expect(
+        matchEntityWithRef(entityWithNamespace, {
+          kind: 'K',
+          namespace: 'xx',
+          name: 'n',
+        }),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(
+          entityWithNamespace,
+          {
+            kind: 'K',
+            name: 'n',
+          },
+          { defaultNamespace: 'xx' },
+        ),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, {
+          kind: 'K',
+          namespace: 'xx',
+          name: 'n',
+        }),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          {
+            kind: 'K',
+            name: 'n',
+          },
+          { defaultNamespace: 'xx' },
+        ),
+      ).toBe(false);
+
+      expect(
+        matchEntityWithRef(entityWithNamespace, {
+          kind: 'K',
+          namespace: 'ns',
+          name: 'x',
+        }),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(entityWithoutNamespace, {
+          kind: 'K',
+          namespace: 'default',
+          name: 'x',
+        }),
+      ).toBe(false);
+      expect(
+        matchEntityWithRef(
+          entityWithoutNamespace,
+          {
+            kind: 'K',
+            name: 'x',
+          },
+          { defaultNamespace: 'default' },
+        ),
+      ).toBe(false);
     });
   });
 });

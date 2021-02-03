@@ -28,6 +28,7 @@ export type {
 export * from './policies';
 export {
   getEntityName,
+  matchEntityWithRef,
   parseEntityName,
   parseEntityRef,
   serializeEntityRef,
